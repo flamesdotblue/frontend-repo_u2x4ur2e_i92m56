@@ -1,110 +1,121 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import HeroSpline from './components/HeroSpline';
 import TopBar from './components/TopBar';
 import LeftDock from './components/LeftDock';
 import ModelSection from './components/ModelSection';
-import { X, Loader2 } from 'lucide-react';
 
-function App() {
+export default function App() {
+  // Global UI/state
   const [showSplash, setShowSplash] = useState(true);
-  const [selections, setSelections] = useState({ airline: 'PA', tailStart: 'PA100', tailEnd: 'PA199' });
-  const [details, setDetails] = useState(null);
-  const [panel, setPanel] = useState(null); // 'hazard' | 'schedule' | null
-  const [triggerLoad, setTriggerLoad] = useState(0);
+  const [selections, setSelections] = useState({ airline: 'PrognosAir', tailStart: '', tailEnd: '' });
+  const [airport, setAirport] = useState('LHR');
+  const [hazardsOpen, setHazardsOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [triggerKey, setTriggerKey] = useState(0);
 
-  useEffect(() => {
-    const t = setTimeout(() => setShowSplash(false), 1400);
+  React.useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 900);
     return () => clearTimeout(t);
   }, []);
 
-  const onOpenDetails = (payload) => setDetails(payload);
+  const handleLoadModel = () => setTriggerKey(k => k + 1);
+
+  const rightPanelContent = useMemo(() => {
+    if (hazardsOpen) return 'Operational Hazards: crosswinds, runway wet, NOTAM: RWY 09L closed 02:00-03:00.';
+    if (scheduleOpen) return 'Schedule: PA123 06:10Z → JFK · Gate A12 · Boarding T-25m. Next: PA458 09:30Z → SFO.';
+    return null;
+  }, [hazardsOpen, scheduleOpen]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-950 to-slate-900 text-white">
-      {showSplash && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,.12),transparent_40%),radial-gradient(circle_at_70%_80%,rgba(167,139,250,.14),transparent_35%)]">
-          <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 flex flex-col items-center text-center shadow-2xl">
-            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 mb-4 flex items-center justify-center">
-              <span className="text-xl font-bold">PA</span>
-            </div>
-            <h2 className="text-2xl font-semibold mb-1">PrognosAir</h2>
-            <p className="text-white/70 mb-4">Initializing flight intelligence…</p>
-            <Loader2 className="h-5 w-5 text-white/80 animate-spin" />
-          </div>
-        </div>
-      )}
+    <div className="relative h-screen min-h-screen w-screen overflow-hidden bg-slate-950 text-white">
+      {/* Background 3D scene */}
+      <HeroSpline />
 
+      {/* Top controls */}
       <TopBar
         selections={selections}
         setSelections={setSelections}
-        onLoadModel={() => setTriggerLoad((n) => n + 1)}
+        onLoadModel={handleLoadModel}
+        airport={airport}
+        setAirport={setAirport}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <HeroSpline />
+      {/* Left action dock */}
+      <LeftDock
+        hazardsOpen={hazardsOpen}
+        scheduleOpen={scheduleOpen}
+        onToggleHazards={() => { setHazardsOpen(v => !v); setScheduleOpen(false); }}
+        onToggleSchedule={() => { setScheduleOpen(v => !v); setHazardsOpen(false); }}
+      />
+
+      {/* Center headline */}
+      <div className="pointer-events-none absolute inset-x-0 top-20 flex justify-center">
+        <div className="text-center">
+          <h1 className="text-3xl md:text-5xl font-semibold tracking-tight bg-gradient-to-r from-white via-sky-200 to-teal-200 bg-clip-text text-transparent drop-shadow">PrognosAir</h1>
+          <p className="mt-2 text-sm md:text-base text-white/70">Predict. Prepare. Perform.</p>
+        </div>
+      </div>
+
+      {/* Model viewer card anchored bottom-right inside viewport */}
+      <div className="absolute bottom-6 right-6 z-20 max-w-full px-4 md:px-0">
         <ModelSection
           selections={selections}
-          onOpenDetails={onOpenDetails}
-          key={triggerLoad}
+          triggerKey={triggerKey}
+          onShowDetails={() => setDetailsOpen(true)}
         />
-      </main>
+      </div>
 
-      <LeftDock onHazardClick={() => setPanel('hazard')} onScheduleClick={() => setPanel('schedule')} />
-
-      {panel && (
-        <div className="fixed inset-0 z-40 flex">
-          <div className="flex-1" onClick={() => setPanel(null)} />
-          <div className="w-full sm:w-[420px] h-full bg-slate-900/95 backdrop-blur-xl border-l border-white/10 p-4 overflow-auto">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">{panel === 'hazard' ? 'Hazard Center' : 'Maintenance Schedule'}</h3>
-              <button className="p-2 rounded-md hover:bg-white/5" onClick={() => setPanel(null)}><X className="h-5 w-5" /></button>
-            </div>
-            {panel === 'hazard' ? (
-              <div className="space-y-3 text-sm text-white/80">
-                <p>Live advisories: None detected in the last hour.</p>
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-300/20 text-amber-200">Proactive monitoring enabled. You’ll be alerted to temperature spikes, vibration anomalies, and hydraulic pressure deviations.</div>
-              </div>
-            ) : (
-              <div className="space-y-3 text-sm text-white/80">
-                <p>Next service window for selected tail range:</p>
-                <ul className="list-disc list-inside space-y-1 text-white/70">
-                  <li>Airframe inspection • +7 days</li>
-                  <li>Engine borescope • +14 days</li>
-                  <li>Avionics calibration • +30 days</li>
-                </ul>
-              </div>
-            )}
+      {/* Right side panel (no page scroll) */}
+      {rightPanelContent && (
+        <div className="fixed right-4 top-24 z-30 h-[70vh] w-[88vw] max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 text-sm text-white/90 backdrop-blur">
+          <div className="mb-2 flex items-center justify-between text-white/70">
+            <span>{hazardsOpen ? 'Hazards' : 'Schedule'}</span>
+            <button
+              onClick={() => { setHazardsOpen(false); setScheduleOpen(false); }}
+              className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+            >
+              Close
+            </button>
+          </div>
+          <div className="h-full overflow-auto pr-1">
+            {rightPanelContent}
           </div>
         </div>
       )}
 
-      {details && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setDetails(null)} />
-          <div className="relative z-10 w-[92%] max-w-lg bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h4 className="text-lg font-semibold">{details.title}</h4>
-                <p className="text-white/60 text-sm">{details.subtitle}</p>
-              </div>
-              <button className="p-2 rounded-md hover:bg-white/5" onClick={() => setDetails(null)}>
-                <X className="h-5 w-5" />
-              </button>
+      {/* Details overlay */}
+      {detailsOpen && (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm">
+          <div className="w-[92vw] max-w-xl rounded-2xl border border-white/10 bg-slate-900/90 p-5 text-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-medium text-white/90">Aircraft Details</h3>
+              <button onClick={() => setDetailsOpen(false)} className="rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/20">Close</button>
             </div>
-            <div className="mt-2 space-y-2">
-              {details.details?.map((d, i) => (
-                <div key={i} className="text-white/80 text-sm">{d}</div>
-              ))}
-            </div>
+            <ul className="space-y-2 text-white/80">
+              <li>Airline: {selections.airline}</li>
+              <li>Tail range: {selections.tailStart || '—'} → {selections.tailEnd || '—'}</li>
+              <li>Systems: Nominal · Fuel: 78% · MTOW check: OK</li>
+              <li>Turnaround: T-22m · Crew: Ready · Catering: In progress</li>
+            </ul>
           </div>
         </div>
       )}
 
-      <footer className="max-w-7xl mx-auto px-4 py-8 text-center text-white/40 text-xs">
-        Built with a professional, futuristic aesthetic. Optimized for desktop, tablet, and mobile.
-      </footer>
+      {/* Splash screen (short, single-view) */}
+      {showSplash && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950">
+          <div className="animate-pulse text-center">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-gradient-to-tr from-sky-500 to-teal-400 shadow-lg" />
+            <div className="text-white/80">Launching PrognosAir…</div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer microcopy pinned bottom-left */}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10 text-xs text-white/50">
+        © {new Date().getFullYear()} PrognosAir · Single-screen interface
+      </div>
     </div>
   );
 }
-
-export default App;

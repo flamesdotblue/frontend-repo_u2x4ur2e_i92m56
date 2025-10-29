@@ -1,121 +1,113 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plane, CloudSun, Loader2 } from 'lucide-react';
 
-const airports = {
-  LHR: { name: 'London Heathrow', lat: 51.4700, lon: -0.4543 },
-  JFK: { name: 'New York JFK', lat: 40.6413, lon: -73.7781 },
-  SFO: { name: 'San Francisco', lat: 37.6213, lon: -122.3790 },
-  DEL: { name: 'Delhi IGI', lat: 28.5562, lon: 77.1000 },
-};
+const AIRLINES = ['PrognosAir', 'AeroAlpha', 'NovaX'];
 
-const airlines = [
-  { code: 'PA', name: 'PrognosAir' },
-  { code: 'AA', name: 'AeroAlpha' },
-  { code: 'NX', name: 'NovaX' },
+const AIRPORTS = [
+  { code: 'LHR', name: 'London Heathrow', lat: 51.4775, lon: -0.4614 },
+  { code: 'JFK', name: 'New York JFK', lat: 40.6413, lon: -73.7781 },
+  { code: 'SFO', name: 'San Francisco', lat: 37.6213, lon: -122.3790 },
+  { code: 'DEL', name: 'Delhi Indira Gandhi', lat: 28.5562, lon: 77.1000 },
 ];
 
-const weatherCodeToText = (code) => {
-  const map = {
-    0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
-    45: 'Fog', 48: 'Depositing rime fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle',
-    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Snow', 80: 'Rain showers', 95: 'Thunderstorm',
-  };
-  return map[code] || '—';
+const codeMap = {
+  0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Fog', 48: 'Depositing rime fog',
+  51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle',
+  56: 'Freezing drizzle', 57: 'Heavy freezing drizzle',
+  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+  66: 'Freezing rain', 67: 'Heavy freezing rain',
+  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+  77: 'Snow grains',
+  80: 'Light showers', 81: 'Showers', 82: 'Heavy showers',
+  85: 'Snow showers', 86: 'Heavy snow showers',
+  95: 'Thunderstorm', 96: 'Thunderstorm w/ hail', 99: 'Heavy thunderstorm w/ hail',
 };
 
-const TopBar = ({ selections, setSelections, onLoadModel }) => {
-  const [airportKey, setAirportKey] = useState('LHR');
-  const [weather, setWeather] = useState({ loading: true, temp: null, code: null });
+export default function TopBar({ selections, setSelections, onLoadModel, airport, setAirport }) {
+  const [wx, setWx] = useState({ temp: null, code: null, loading: false });
 
-  const airport = useMemo(() => airports[airportKey], [airportKey]);
+  const selectedAirport = useMemo(() => AIRPORTS.find(a => a.code === airport) || AIRPORTS[0], [airport]);
 
   useEffect(() => {
-    let active = true;
-    setWeather((w) => ({ ...w, loading: true }));
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${airport.lat}&longitude=${airport.lon}&current=temperature_2m,weather_code`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!active) return;
+    let isMounted = true;
+    async function fetchWx() {
+      setWx(prev => ({ ...prev, loading: true }));
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${selectedAirport.lat}&longitude=${selectedAirport.lon}&current=temperature_2m,weather_code&timezone=auto`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!isMounted) return;
         const temp = data?.current?.temperature_2m;
         const code = data?.current?.weather_code;
-        setWeather({ loading: false, temp, code });
-      })
-      .catch(() => active && setWeather({ loading: false, temp: null, code: null }));
-    return () => { active = false; };
-  }, [airport]);
+        setWx({ temp, code, loading: false });
+      } catch (e) {
+        if (!isMounted) return;
+        setWx({ temp: null, code: null, loading: false });
+      }
+    }
+    fetchWx();
+    const t = setInterval(fetchWx, 5 * 60 * 1000);
+    return () => { isMounted = false; clearInterval(t); };
+  }, [selectedAirport.lat, selectedAirport.lon]);
 
   return (
-    <div className="w-full sticky top-0 z-30 backdrop-blur bg-black/40 border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-        <div className="flex items-center gap-2 text-white/90">
-          <Plane className="h-5 w-5 text-sky-400" />
-          <span className="font-semibold">PrognosAir</span>
-        </div>
+    <div className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between gap-4 px-4 py-3 md:px-6 md:py-4">
+      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-white backdrop-blur">
+        <span className="hidden sm:inline text-sm text-white/70">Airline</span>
+        <select
+          value={selections.airline}
+          onChange={(e) => setSelections(s => ({ ...s, airline: e.target.value }))}
+          className="bg-transparent text-white text-sm outline-none"
+        >
+          {AIRLINES.map(a => (
+            <option key={a} value={a} className="bg-slate-900">{a}</option>
+          ))}
+        </select>
+        <div className="mx-2 h-4 w-px bg-white/10" />
+        <input
+          value={selections.tailStart}
+          onChange={(e) => setSelections(s => ({ ...s, tailStart: e.target.value }))}
+          placeholder="Tail start"
+          className="w-24 bg-transparent text-sm text-white placeholder-white/50 outline-none"
+        />
+        <span className="text-white/50">→</span>
+        <input
+          value={selections.tailEnd}
+          onChange={(e) => setSelections(s => ({ ...s, tailEnd: e.target.value }))}
+          placeholder="Tail end"
+          className="w-24 bg-transparent text-sm text-white placeholder-white/50 outline-none"
+        />
+        <button
+          onClick={onLoadModel}
+          className="ml-3 rounded-xl bg-sky-500/90 px-3 py-1.5 text-sm font-medium text-white shadow hover:bg-sky-400"
+        >
+          Load
+        </button>
+      </div>
 
-        <div className="flex-1" />
-
-        <div className="flex flex-wrap items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-2">
-          <select
-            className="bg-transparent text-white/90 text-sm px-2 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-            value={selections.airline}
-            onChange={(e) => setSelections((s) => ({ ...s, airline: e.target.value }))}
-          >
-            {airlines.map((a) => (
-              <option key={a.code} value={a.code} className="bg-slate-900">{a.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Tail start"
-            value={selections.tailStart}
-            onChange={(e) => setSelections((s) => ({ ...s, tailStart: e.target.value.toUpperCase() }))}
-            className="bg-transparent text-white/90 text-sm px-2 py-1 rounded-md placeholder-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-          <span className="text-white/40">→</span>
-          <input
-            type="text"
-            placeholder="Tail end"
-            value={selections.tailEnd}
-            onChange={(e) => setSelections((s) => ({ ...s, tailEnd: e.target.value.toUpperCase() }))}
-            className="bg-transparent text-white/90 text-sm px-2 py-1 rounded-md placeholder-white/40 border border-white/10 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-          <button
-            onClick={onLoadModel}
-            className="text-sm bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-md border border-white/10 transition-colors"
-          >
-            Load
-          </button>
-        </div>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-3">
-          <select
-            className="bg-white/5 border border-white/10 text-white/90 text-sm px-2 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={airportKey}
-            onChange={(e) => setAirportKey(e.target.value)}
-          >
-            {Object.keys(airports).map((k) => (
-              <option key={k} value={k} className="bg-slate-900">{k}</option>
-            ))}
-          </select>
-          <div className="hidden md:flex flex-col">
-            <span className="text-sm text-white/90">{airport.name}</span>
-            <span className="text-xs text-white/60">{airportKey}</span>
-          </div>
-          <div className="flex items-center gap-2 text-white/90 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5">
-            <CloudSun className="h-4 w-4 text-amber-300" />
-            {weather.loading ? (
-              <span className="inline-flex items-center gap-1 text-white/70"><Loader2 className="h-3.5 w-3.5 animate-spin" />Fetching…</span>
-            ) : (
-              <span className="text-sm">{weather.temp != null ? `${Math.round(weather.temp)}°C` : '—'} • {weatherCodeToText(weather.code)}</span>
-            )}
-          </div>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-white backdrop-blur">
+        <span className="hidden sm:inline text-sm text-white/70">Airport</span>
+        <select
+          value={airport}
+          onChange={(e) => setAirport(e.target.value)}
+          className="bg-transparent text-white text-sm outline-none"
+        >
+          {AIRPORTS.map(a => (
+            <option key={a.code} value={a.code} className="bg-slate-900">{a.code}</option>
+          ))}
+        </select>
+        <div className="mx-2 h-4 w-px bg-white/10" />
+        <div className="flex items-center gap-2 text-sm">
+          {wx.loading ? (
+            <span className="text-white/60">Loading wx…</span>
+          ) : (
+            <>
+              <span className="text-white/90">{wx.temp !== null ? `${Math.round(wx.temp)}°` : '--'}</span>
+              <span className="hidden sm:inline text-white/60">{codeMap[wx.code] || 'N/A'}</span>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-export default TopBar;
+}
